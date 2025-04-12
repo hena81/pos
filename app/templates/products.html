@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>إدارة المنتجات</h1>
+    <a href="{{ url_for('add_product') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> إضافة منتج جديد
+    </a>
+</div>
+
+<!-- Filter Card -->
+<div class="card mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0">تصفية المنتجات</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4 mb-2">
+                <input type="text" id="codeFilter" class="form-control" placeholder="تصفية بكود المنتج">
+            </div>
+            <div class="col-md-4 mb-2">
+                <input type="text" id="nameFilter" class="form-control" placeholder="تصفية باسم المنتج">
+            </div>
+            <div class="col-md-4 mb-2">
+                <select id="categoryFilter" class="form-select">
+                    <option value="">جميع التصنيفات</option>
+                    {% for category in categories %}
+                    <option value="{{ category.name }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped" id="productsTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>كود المنتج</th>
+                        <th>اسم المنتج</th>
+                        <th>التصنيف</th>
+                        <th>الوصف</th>
+                        <th>السعر</th>
+                        <th>المخزون</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr>
+                        <td>{{ product.id }}</td>
+                        <td>{{ product.code }}</td>
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.category.name if product.category else '-' }}</td>
+                        <td>{{ product.description }}</td>
+                        <td>{{ product.price }}</td>
+                        <td>{{ product.stock }}</td>
+                        <td>
+                            <a href="{{ url_for('edit_product', product_id=product.id) }}" class="btn btn-sm btn-info">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button class="btn btn-sm btn-danger delete-product" data-id="{{ product.id }}" data-name="{{ product.name }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center">لا توجد منتجات</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">تأكيد الحذف</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>هل أنت متأكد من حذف المنتج: <span id="product-name"></span>؟</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <form id="delete-form" method="POST">
+                    <button type="submit" class="btn btn-danger">حذف</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Handle delete button click
+        $('.delete-product').on('click', function() {
+            const productId = $(this).data('id');
+            const productName = $(this).data('name');
+            
+            // Set product name in modal
+            $('#product-name').text(productName);
+            
+            // Set form action
+            $('#delete-form').attr('action', '/products/delete/' + productId);
+            
+            // Show modal
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            deleteModal.show();
+        });
+        
+        // Filter functionality
+        $("#codeFilter, #nameFilter, #categoryFilter").on('input change', function() {
+            filterProducts();
+        });
+        
+        function filterProducts() {
+            const codeFilter = $("#codeFilter").val().toLowerCase();
+            const nameFilter = $("#nameFilter").val().toLowerCase();
+            const categoryFilter = $("#categoryFilter").val().toLowerCase();
+            
+            $("#productsTable tbody tr").each(function() {
+                const code = $(this).find("td:eq(1)").text().toLowerCase();
+                const name = $(this).find("td:eq(2)").text().toLowerCase();
+                const category = $(this).find("td:eq(3)").text().toLowerCase();
+                
+                const codeMatch = code.includes(codeFilter);
+                const nameMatch = name.includes(nameFilter);
+                const categoryMatch = categoryFilter === "" || category === categoryFilter;
+                
+                if (codeMatch && nameMatch && categoryMatch) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

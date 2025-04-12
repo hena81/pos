@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="text-center mb-4">
+        <h1 class="display-4 fw-bold">مرحباً بك في نظام نقاط البيع</h1>
+        <p class="lead text-muted">نظام متكامل لإدارة المبيعات والمخزون</p>
+    </div>
+
+    <!-- Statistics Overview -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-primary text-white">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">إجمالي المبيعات</h5>
+                        <i class="fas fa-chart-line fa-2x"></i>
+                    </div>
+                    <h2 class="mt-3 mb-0">{{ stats.total_revenue|round(2) }} دينار</h2>
+                    <p class="card-text mt-2">عدد العمليات: {{ stats.total_sales }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-success text-white">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">مبيعات اليوم</h5>
+                        <i class="fas fa-calendar-day fa-2x"></i>
+                    </div>
+                    <h2 class="mt-3 mb-0">{{ stats.today_revenue|round(2) }} دينار</h2>
+                    <p class="card-text mt-2">عدد العمليات: {{ stats.today_sales }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-info text-white">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">مبيعات الشهر</h5>
+                        <i class="fas fa-calendar-alt fa-2x"></i>
+                    </div>
+                    <h2 class="mt-3 mb-0">{{ stats.month_revenue|round(2) }} دينار</h2>
+                    <p class="card-text mt-2">عدد العمليات: {{ stats.month_sales }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100 bg-warning text-white">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">المخزون</h5>
+                        <i class="fas fa-boxes fa-2x"></i>
+                    </div>
+                    <h2 class="mt-3 mb-0">{{ stats.total_products }}</h2>
+                    <p class="card-text mt-2 {% if stats.low_stock_products > 0 %}text-danger fw-bold{% endif %}">
+                        {{ stats.low_stock_products }} منتج بمخزون منخفض
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Top Selling Products -->
+        <div class="col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-star me-2"></i>أكثر المنتجات مبيعاً</h5>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if stats.top_products %}
+                        <div class="list-group list-group-flush">
+                            {% for product in stats.top_products %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge bg-primary rounded-pill me-2">{{ loop.index }}</span>
+                                    {{ product.name }}
+                                </div>
+                                <span class="badge bg-light text-dark">{{ product.total_sold }} وحدة</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-box fa-3x mb-3"></i>
+                            <p>لا توجد مبيعات بعد</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-md-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>الوصول السريع</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <a href="{{ url_for('pos') }}" class="text-decoration-none">
+                                <div class="card text-center h-100 border-0 shadow-sm hover-card">
+                                    <div class="card-body">
+                                        <i class="fas fa-shopping-cart fa-2x text-primary mb-3"></i>
+                                        <h5 class="card-title">نقطة البيع</h5>
+                                        <p class="card-text small text-muted">إجراء عمليات البيع بسهولة وسرعة</p>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{{ url_for('products') }}" class="text-decoration-none">
+                                <div class="card text-center h-100 border-0 shadow-sm hover-card">
+                                    <div class="card-body">
+                                        <i class="fas fa-box fa-2x text-success mb-3"></i>
+                                        <h5 class="card-title">المنتجات</h5>
+                                        <p class="card-text small text-muted">إدارة المنتجات والمخزون</p>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{{ url_for('sales') }}" class="text-decoration-none">
+                                <div class="card text-center h-100 border-0 shadow-sm hover-card">
+                                    <div class="card-body">
+                                        <i class="fas fa-chart-bar fa-2x text-info mb-3"></i>
+                                        <h5 class="card-title">المبيعات</h5>
+                                        <p class="card-text small text-muted">عرض تقارير المبيعات</p>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .dashboard-container {
+        padding: 1.5rem 0;
+    }
+    
+    .hover-card {
+        transition: all 0.3s ease;
+    }
+    
+    .hover-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+    
+    .card {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    .bg-primary {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%) !important;
+    }
+    
+    .bg-success {
+        background: linear-gradient(135deg, #198754 0%, #157347 100%) !important;
+    }
+    
+    .bg-info {
+        background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%) !important;
+    }
+    
+    .bg-warning {
+        background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%) !important;
+    }
+</style>
+{% endblock %}

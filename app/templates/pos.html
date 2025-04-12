@@ -1,0 +1,833 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Add this line to include the JsBarcode library -->
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+<div class="pos-container">
+    <div class="pos-header mb-4">
+        <h1 class="display-5 fw-bold text-primary"><i class="fas fa-cash-register me-2"></i>نقطة البيع</h1>
+        <div class="pos-header-actions">
+            <div class="search-container">
+                <input type="text" id="product-search" class="form-control" placeholder="بحث عن منتج...">
+                <i class="fas fa-search search-icon"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Products Section -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-gradient text-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-box me-2"></i>المنتجات</h5>
+                        <div class="category-filter">
+                            <select class="form-select form-select-sm" id="category-filter">
+                                <option value="all">جميع التصنيفات</option>
+                                {% for category in categories %}
+                                <option value="{{ category.id }}">{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="products-grid" id="products-container">
+                        {% for product in products %}
+                        <div class="product-item" 
+                             data-id="{{ product.id }}" 
+                             data-name="{{ product.name }}" 
+                             data-price="{{ product.price }}"
+                             data-category="{{ product.category.id if product.category else 'none' }}">
+                            <div class="product-card {% if product.stock <= 0 %}out-of-stock{% endif %}">
+                                <div class="product-icon">
+                                    <i class="fas fa-box"></i>
+                                </div>
+                                <div class="product-details">
+                                    <h5 class="product-name">{{ product.name }}</h5>
+                                    <div class="product-code">{{ product.code }}</div>
+                                    <div class="product-price">{{ product.price }} دينار</div>
+                                    <div class="product-stock {% if product.stock <= 5 %}low-stock{% elif product.stock <= 0 %}no-stock{% endif %}">
+                                        <i class="fas fa-layer-group me-1"></i> {{ product.stock }}
+                                    </div>
+                                </div>
+                                <button class="btn btn-add-to-cart" {% if product.stock <= 0 %}disabled{% endif %}>
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Cart Section -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-secondary text-white py-3 d-flex align-items-center">
+                    <i class="fas fa-shopping-cart me-2"></i>
+                    <h5 class="mb-0">سلة المشتريات</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="cart-items-container" id="cart-items">
+                        <!-- Cart items will be added here dynamically -->
+                        <div class="text-center text-muted empty-cart" id="empty-cart-message">
+                            <div class="empty-cart-icon">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div>
+                            <p>السلة فارغة</p>
+                        </div>
+                    </div>
+                    
+                    <div class="cart-summary">
+                        <div class="d-flex justify-content-between fw-bold mb-3">
+                            <span>المجموع:</span>
+                            <span id="cart-total" class="cart-total">0.000 د.ك</span>
+                        </div>
+                        
+                        <div class="cart-actions d-flex gap-2">
+                            <button id="clear-cart-btn" class="btn btn-outline-danger flex-grow-1" disabled>
+                                <i class="fas fa-trash me-1"></i> إفراغ السلة
+                            </button>
+                            <button id="checkout-btn" class="btn btn-success flex-grow-2" disabled>
+                                <i class="fas fa-check-circle me-1"></i> إتمام البيع
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Receipt Modal -->
+<div class="modal fade" id="receiptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-gradient-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-receipt me-2"></i>إيصال البيع</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="receipt-content">
+                <!-- Receipt content will be added here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                <button type="button" class="btn btn-primary" id="print-receipt">
+                    <i class="fas fa-print me-2"></i> طباعة
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    /* CSS styles for the POS interface */
+    .quantity-controls {
+        display: flex;
+        align-items: center;
+    }
+    
+    .quantity-controls .btn {
+        padding: 0.2rem 0.5rem;
+        line-height: 1;
+    }
+    
+    .quantity-control {
+        display: flex;
+        align-items: center;
+        margin-right: 10px;
+        border: 1px solid #ddd;
+        border-radius: 25px;
+        padding: 2px 8px;
+        background-color: #f8f9fa;
+    }
+    
+    .btn-quantity {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background-color: white;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-weight: bold;
+        color: #ff6b00;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .btn-quantity:hover {
+        background-color: #f8f8f8;
+    }
+    
+    .decrease-qty {
+        color: #ff6b00;
+    }
+    
+    .increase-qty {
+        color: #ff6b00;
+    }
+    
+    .item-quantity {
+        margin: 0 15px;
+        min-width: 20px;
+        text-align: center;
+        font-size: 1.2rem;
+        font-weight: 500;
+    }
+    
+    /* تحسين تصميم سلة المشتريات */
+    .cart-items-container {
+        max-height: 400px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0,0,0,0.2) transparent;
+    }
+    
+    .cart-items-container::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .cart-items-container::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    
+    .cart-items-container::-webkit-scrollbar-thumb {
+        background-color: rgba(0,0,0,0.2);
+        border-radius: 3px;
+    }
+    
+    .cart-item {
+        padding: 15px;
+        border-bottom: 1px solid #eee;
+        transition: all 0.3s ease;
+        position: relative;
+        background-color: #fff;
+    }
+    
+    .cart-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .cart-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    
+    .cart-item-name {
+        font-weight: 600;
+        font-size: 1rem;
+        color: #333;
+    }
+    
+    .cart-item-details {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.9rem;
+    }
+    
+    .quantity-control {
+        display: flex;
+        align-items: center;
+        border: 1px solid #e0e0e0;
+        border-radius: 25px;
+        padding: 2px 8px;
+        background-color: #f8f9fa;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    
+    .btn-quantity {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background-color: white;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-weight: bold;
+        color: #ff6b00;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+    }
+    
+    .btn-quantity:hover {
+        background-color: #ff6b00;
+        color: white;
+        transform: scale(1.05);
+    }
+    
+    .item-quantity {
+        margin: 0 12px;
+        min-width: 24px;
+        text-align: center;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .item-total {
+        font-weight: 600;
+        color: #333;
+        font-size: 0.95rem;
+    }
+    
+    .btn-remove-item {
+        background: none;
+        border: none;
+        color: #dc3545;
+        cursor: pointer;
+        padding: 5px;
+        font-size: 0.8rem;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .btn-remove-item:hover {
+        background-color: rgba(220, 53, 69, 0.1);
+        transform: scale(1.1);
+    }
+    
+    .empty-cart {
+        padding: 40px 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .empty-cart-icon {
+        font-size: 3rem;
+        color: #ddd;
+        margin-bottom: 15px;
+        animation: float 3s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+    }
+    
+    .cart-summary {
+        padding: 20px;
+        border-top: 1px solid #eee;
+        background-color: #f8f9fa;
+    }
+    
+    .cart-total-label {
+        font-size: 1.1rem;
+        color: #555;
+    }
+    
+    .cart-total {
+        font-size: 1.2rem;
+        color: #28a745;
+    }
+    
+    .cart-actions {
+        margin-top: 15px;
+    }
+    
+    .checkout-btn {
+        padding: 10px;
+        font-weight: 600;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+    }
+    
+    .checkout-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .clear-cart-btn {
+        padding: 8px;
+        font-weight: 500;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+    }
+    
+    .clear-cart-btn:hover:not(:disabled) {
+        background-color: rgba(220, 53, 69, 0.1);
+    }
+    
+    .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        padding: 12px 15px;
+        background-color: white;
+        border-radius: 4px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        z-index: 9999;
+        transform: translateX(120%);
+        transition: transform 0.3s ease;
+        max-width: 350px;
+    }
+    
+    .notification.show {
+        transform: translateX(0);
+    }
+    
+    .notification-icon {
+        margin-right: 10px;
+        font-size: 1.2rem;
+    }
+    
+    .notification-success .notification-icon {
+        color: #28a745;
+    }
+    
+    .notification-warning .notification-icon {
+        color: #ffc107;
+    }
+    
+    .notification-danger .notification-icon {
+        color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        let cart = [];
+        let productStocks = {};
+        
+        // Initialize product stocks
+        $('.product-item').each(function() {
+            const productId = $(this).data('id');
+            const stockText = $(this).find('.product-stock').text().trim();
+            const stock = parseInt(stockText);
+            productStocks[productId] = stock;
+        });
+        
+        // Filter products by category
+        $('#category-filter').on('change', function() {
+            const categoryId = $(this).val();
+            
+            if (categoryId === 'all') {
+                $('.product-item').show();
+            } else {
+                $('.product-item').hide();
+                $(`.product-item[data-category="${categoryId}"]`).show();
+            }
+        });
+        
+        // Search products
+        $('#product-search').on('input', function() {
+            const searchTerm = $(this).val().toLowerCase();
+            
+            if (searchTerm === '') {
+                $('.product-item').show();
+            } else {
+                $('.product-item').each(function() {
+                    const productName = $(this).data('name').toLowerCase();
+                    const productCode = $(this).find('.product-code').text().toLowerCase();
+                    
+                    if (productName.includes(searchTerm) || productCode.includes(searchTerm)) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
+            }
+        });
+        
+        // Add product to cart
+        $('.btn-add-to-cart').on('click', function() {
+            const productItem = $(this).closest('.product-item');
+            const productId = productItem.data('id');
+            const productName = productItem.data('name');
+            const productPrice = productItem.data('price');
+            
+            // Check if product already in cart
+            const existingItem = cart.find(item => item.product_id === productId);
+            
+            // Check available stock
+            const currentStock = productStocks[productId];
+            
+            if (existingItem) {
+                // Check if adding one more would exceed stock
+                if (existingItem.quantity < currentStock) {
+                    existingItem.quantity += 1;
+                    existingItem.total = existingItem.quantity * existingItem.price;
+                    $(`#cart-item-${productId} .item-quantity`).text(existingItem.quantity);
+                    $(`#cart-item-${productId} .item-price`).text(`${existingItem.price.toFixed(2)} × ${existingItem.quantity}`);
+                    $(`#cart-item-${productId} .item-total`).text(existingItem.total.toFixed(2) + ' دينار');
+                    
+                    // Add animation effect
+                    $(`#cart-item-${productId}`).addClass('highlight');
+                    setTimeout(() => {
+                        $(`#cart-item-${productId}`).removeClass('highlight');
+                    }, 300);
+                } else {
+                    showNotification(`لا يمكن إضافة المزيد من ${productName}. المخزون المتاح: ${currentStock}`, 'warning');
+                }
+            } else {
+                if (currentStock > 0) {
+                    const newItem = {
+                        product_id: productId,
+                        name: productName,
+                        price: productPrice,
+                        quantity: 1,
+                        total: productPrice
+                    };
+                    
+                    cart.push(newItem);
+                    
+                    // Add item to cart UI
+                    $('#empty-cart-message').hide();
+                    $('#cart-items').append(`
+                        <div class="cart-item highlight" id="cart-item-${productId}">
+                            <div class="cart-item-header">
+                                <span class="cart-item-name">${productName}</span>
+                                <button class="btn-remove-item remove-item" data-id="${productId}" title="إزالة من السلة">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="cart-item-details">
+                                <div class="quantity-control">
+                                    <button class="btn-quantity decrease-qty" data-id="${productId}" title="تقليل الكمية">
+                                        <i class="fas fa-minus"></i>
+                                    </button>
+                                    <span class="item-quantity">${newItem.quantity}</span>
+                                    <button class="btn-quantity increase-qty" data-id="${productId}" title="زيادة الكمية">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                                <span class="item-total">${productPrice.toFixed(3)} د.ك</span>
+                            </div>
+                        </div>
+                    `);
+                    
+                    // Remove highlight after animation
+                    setTimeout(() => {
+                        $(`#cart-item-${productId}`).removeClass('highlight');
+                    }, 300);
+                } else {
+                    showNotification(`لا يوجد مخزون كافٍ من ${productName}`, 'warning');
+                }
+            }
+            
+            updateCartTotal();
+        });
+        
+        // Remove item from cart
+        $(document).on('click', '.remove-item', function() {
+            const productId = $(this).data('id');
+            
+            // Add remove animation
+            $(`#cart-item-${productId}`).addClass('removing');
+            
+            setTimeout(() => {
+                cart = cart.filter(item => item.product_id !== productId);
+                $(`#cart-item-${productId}`).remove();
+                
+                if (cart.length === 0) {
+                    $('#empty-cart-message').show();
+                }
+                
+                updateCartTotal();
+            }, 300);
+        });
+        
+        // Increase quantity
+        $(document).on('click', '.increase-qty', function() {
+            const productId = $(this).data('id');
+            const item = cart.find(item => item.product_id === productId);
+            
+            if (item) {
+                // Check if increasing would exceed stock
+                if (item.quantity < productStocks[productId]) {
+                    item.quantity += 1;
+                    item.total = item.quantity * item.price;
+                    $(`#cart-item-${productId} .item-quantity`).text(item.quantity);
+                    $(`#cart-item-${productId} .item-total`).text(item.total.toFixed(3) + ' دينار');
+                    
+                    // Add pulse animation
+                    $(`#cart-item-${productId}`).addClass('pulse');
+                    setTimeout(() => {
+                        $(`#cart-item-${productId}`).removeClass('pulse');
+                    }, 300);
+                    
+                    updateCartTotal();
+                } else {
+                    showNotification(`لا يمكن إضافة المزيد من ${item.name}. المخزون المتاح: ${productStocks[productId]}`, 'warning');
+                }
+            }
+        });
+        
+        // Decrease quantity
+        $(document).on('click', '.decrease-qty', function() {
+            const productId = $(this).data('id');
+            const item = cart.find(item => item.product_id === productId);
+            
+            if (item && item.quantity > 1) {
+                item.quantity -= 1;
+                item.total = item.quantity * item.price;
+                $(`#cart-item-${productId} .item-quantity`).text(item.quantity);
+                $(`#cart-item-${productId} .item-total`).text(item.total.toFixed(3) + ' دينار');
+                
+                // Add pulse animation
+                $(`#cart-item-${productId}`).addClass('pulse');
+                setTimeout(() => {
+                    $(`#cart-item-${productId}`).removeClass('pulse');
+                }, 300);
+                
+                updateCartTotal();
+            }
+        });
+        
+        // Clear cart
+        $('#clear-cart-btn').on('click', function() {
+            // Add fade-out animation to all cart items
+            $('.cart-item').addClass('removing');
+            
+            setTimeout(() => {
+                cart = [];
+                $('#cart-items').html(`
+                    <div class="text-center text-muted empty-cart" id="empty-cart-message">
+                        <div class="empty-cart-icon">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <p>السلة فارغة</p>
+                    </div>
+                `);
+                
+                updateCartTotal();
+            }, 300);
+        });
+        
+        // Checkout
+        $('#checkout-btn').on('click', function() {
+            if (cart.length === 0) return;
+            
+            const total = cart.reduce((sum, item) => sum + item.total, 0);
+            
+            // Show loading state
+            $(this).html('<span class="spinner-border spinner-border-sm me-2"></span> جاري المعالجة...');
+            $(this).prop('disabled', true);
+            
+            // Send sale data to server
+            $.ajax({
+                url: '/sales/add',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    items: cart,
+                    total: total
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        showReceipt(response.sale_id);
+                        
+                        // Clear cart after successful checkout
+                        cart = [];
+                        $('#cart-items').html(`
+                            <div class="text-center text-muted empty-cart" id="empty-cart-message">
+                                <div class="empty-cart-icon">
+                                    <i class="fas fa-shopping-cart"></i>
+                                </div>
+                                <p>السلة فارغة</p>
+                            </div>
+                        `);
+                        
+                        updateCartTotal();
+                        showNotification('تم إتمام عملية البيع بنجاح!', 'success');
+                    }
+                },
+                error: function() {
+                    showNotification('حدث خطأ أثناء معالجة عملية البيع', 'danger');
+                },
+                complete: function() {
+                    // Reset button state
+                    $('#checkout-btn').html('<i class="fas fa-check-circle me-2"></i> إتمام البيع');
+                    $('#checkout-btn').prop('disabled', cart.length === 0);
+                }
+            });
+        });
+        
+        // Show receipt
+        function showReceipt(saleId) {
+            const total = cart.reduce((sum, item) => sum + item.total, 0);
+            const date = new Date().toLocaleString('ar-SA');
+            
+            let receiptHTML = `
+                <div class="receipt-header text-center mb-3">
+                    <h4>نظام نقاط البيع</h4>
+                    <p class="mb-0">رقم الفاتورة: <strong>${saleId}</strong></p>
+                    <p class="text-muted"><i class="far fa-calendar-alt me-1"></i>${date}</p>
+                </div>
+                <hr>
+                <div class="receipt-items">
+                    <table class="table table-sm receipt-table">
+                        <thead>
+                            <tr>
+                                <th>المنتج</th>
+                                <th>الكمية</th>
+                                <th>السعر</th>
+                                <th>المجموع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            cart.forEach(item => {
+                receiptHTML += `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td>${item.quantity}</td>
+                        <td>${item.price.toFixed(3)} دينار</td>
+                        <td>${item.total.toFixed(3)} دينار</td>
+                    </tr>
+                `;
+            });
+            
+            receiptHTML += `
+                        </tbody>
+                    </table>
+                </div>
+                <hr>
+                <div class="receipt-total d-flex justify-content-between fw-bold">
+                    <span>المجموع:</span>
+                    <span>${total.toFixed(3)} دينار</span>
+                </div>
+                <div class="receipt-footer text-center mt-4">
+                    <p>شكراً لتعاملكم معنا</p>
+                    <div class="receipt-barcode">
+                        <svg id="receipt-barcode"></svg>
+                    </div>
+                </div>
+            `;
+            
+            $('#receipt-content').html(receiptHTML);
+            
+            // Generate barcode with the sale ID
+            JsBarcode("#receipt-barcode", `INV-${saleId}`, {
+                format: "CODE128",
+                width: 2,
+                height: 50,
+                displayValue: true,
+                text: `فاتورة #${saleId}`
+            });
+            
+            // Show modal
+            const receiptModal = new bootstrap.Modal(document.getElementById('receiptModal'));
+            receiptModal.show();
+        }
+        
+        // Print receipt
+        $('#print-receipt').on('click', function() {
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>إيصال البيع</title>
+                    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
+                    <style>
+                        body { 
+                            font-family: Arial, sans-serif; 
+                            direction: rtl; 
+                            padding: 20px;
+                            max-width: 80mm;
+                            margin: 0 auto;
+                        }
+                        .text-center { text-align: center; }
+                        .mb-3 { margin-bottom: 15px; }
+                        .mb-0 { margin-bottom: 0; }
+                        .mt-4 { margin-top: 20px; }
+                        .text-muted { color: #6c757d; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                        th, td { padding: 8px; text-align: right; border-bottom: 1px solid #ddd; }
+                        hr { margin: 15px 0; border: none; border-top: 1px dashed #ddd; }
+                        .d-flex { display: flex; }
+                        .justify-content-between { justify-content: space-between; }
+                        .fw-bold { font-weight: bold; }
+                        .receipt-barcode { margin-top: 15px; text-align: center; }
+                        .receipt-footer { margin-top: 30px; font-size: 14px; }
+                    </style>
+                </head>
+                <body>
+                    ${$('#receipt-content').html()}
+                    <script>
+                        // Re-generate barcode in print window
+                        const saleId = document.querySelector('.receipt-header strong').textContent;
+                        JsBarcode("#receipt-barcode", "INV-" + saleId, {
+                            format: "CODE128",
+                            width: 2,
+                            height: 50,
+                            displayValue: true,
+                            text: "فاتورة #" + saleId
+                        });
+                    <\/script>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        });
+        
+        // Update cart total
+        function updateCartTotal() {
+            const total = cart.reduce((sum, item) => sum + item.total, 0);
+            $('#cart-total').text(total.toFixed(3) + ' د.ك');
+            
+            // Enable/disable buttons based on cart state
+            if (cart.length > 0) {
+                $('#checkout-btn, #clear-cart-btn').prop('disabled', false);
+            } else {
+                $('#checkout-btn, #clear-cart-btn').prop('disabled', true);
+            }
+        }
+        
+        // Show notification
+        function showNotification(message, type) {
+            // Remove any existing notifications
+            $('.notification').remove();
+            
+            // Create notification element
+            const notification = $(`
+                <div class="notification notification-${type}">
+                    <div class="notification-icon">
+                        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-times-circle'}"></i>
+                    </div>
+                    <div class="notification-message">${message}</div>
+                </div>
+            `);
+            
+            // Add to body
+            $('body').append(notification);
+            
+            // Show with animation
+            setTimeout(() => {
+                notification.addClass('show');
+            }, 10);
+            
+            // Hide after delay
+            setTimeout(() => {
+                notification.removeClass('show');
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, 3000);
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>تفاصيل الفاتورة #{{ sale.id }}</h1>
+    <a href="{{ url_for('sales') }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> العودة للمبيعات
+    </a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">معلومات الفاتورة</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>رقم الفاتورة:</strong> {{ sale.id }}</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>التاريخ:</strong> {{ sale.date.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>المجموع:</strong> {{ "%.3f"|format(sale.total) }} دينار</p>
+            </div>
+            <div class="col-md-6 text-end">
+                <button id="print-invoice" class="btn btn-primary">
+                    <i class="fas fa-print"></i> طباعة الفاتورة
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">المنتجات</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>المنتج</th>
+                        <th>السعر</th>
+                        <th>الكمية</th>
+                        <th>المجموع</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in sale.items %}
+                    <tr>
+                        <td>{{ item.product.name }}</td>
+                        <td>{{ "%.3f"|format(item.price) }} دينار</td>
+                        <td>{{ item.quantity }}</td>
+                        <td>{{ "%.3f"|format(item.price * item.quantity) }} دينار</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="text-end"><strong>المجموع الكلي:</strong></td>
+                        <td><strong>{{ "%.3f"|format(sale.total) }} دينار</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $('#print-invoice').on('click', function() {
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>فاتورة #{{ sale.id }}</title>
+                    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
+                    <style>
+                        body { font-family: Arial, sans-serif; direction: rtl; }
+                        .text-center { text-align: center; }
+                        .mb-3 { margin-bottom: 15px; }
+                        .mb-0 { margin-bottom: 0; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                        th, td { padding: 8px; text-align: right; border-bottom: 1px solid #ddd; }
+                        th { background-color: #f2f2f2; }
+                        tfoot td { font-weight: bold; }
+                        hr { margin: 15px 0; }
+                        .text-end { text-align: left; }
+                        .fw-bold { font-weight: bold; }
+                        .header { margin-bottom: 20px; }
+                        .barcode-container { text-align: center; margin: 20px 0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header text-center">
+                        <h2>نظام نقاط البيع</h2>
+                        <p>فاتورة رقم: {{ sale.id }}</p>
+                        <p>التاريخ: {{ sale.date.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                        <div class="barcode-container">
+                            <svg id="barcode"></svg>
+                        </div>
+                    </div>
+                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>المنتج</th>
+                                <th>السعر</th>
+                                <th>الكمية</th>
+                                <th>المجموع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in sale.items %}
+                            <tr>
+                                <td>{{ item.product.name }}</td>
+                                <td>{{ "%.3f"|format(item.price) }} دينار</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>{{ "%.3f"|format(item.price * item.quantity) }} دينار</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" class="text-end">المجموع الكلي:</td>
+                                <td>{{ "%.3f"|format(sale.total) }} دينار</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    
+                    <div class="text-center">
+                        <p>شكراً لتعاملكم معنا</p>
+                    </div>
+                    
+                    <script>
+                        // Generate barcode with invoice ID and date
+                        JsBarcode("#barcode", "INV-{{ sale.id }}-{{ sale.date.strftime('%Y%m%d%H%M') }}", {
+                            format: "CODE128",
+                            width: 2,
+                            height: 50,
+                            displayValue: true,
+                            text: "فاتورة #{{ sale.id }}"
+                        });
+                    <\/script>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            
+            // Wait for barcode to render before printing
+            setTimeout(function() {
+                printWindow.print();
+            }, 500);
+        });
+    });
+</script>
+{% endblock %}
